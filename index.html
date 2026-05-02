@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NYCPS AI Implementation Planner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a1a; background: #f8f9fa; padding: 24px; }
+  .container { max-width: 940px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #666; margin-bottom: 16px; }
+
+  /* District selector */
+  .district-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; padding: 12px 16px; background: #fff; border: 1px solid #ddd; border-radius: 10px; }
+  .district-bar label { font-size: 13px; font-weight: 700; color: #333; white-space: nowrap; }
+  .district-bar select { flex: 1; min-width: 200px; padding: 8px 12px; font-size: 14px; border: 1px solid #ccc; border-radius: 6px; background: #fff; color: #1a1a1a; }
+  .supt-name { font-size: 13px; color: #2563eb; font-weight: 600; }
+
+  /* Action buttons */
+  .action-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .action-btn { padding: 8px 16px; font-size: 13px; font-weight: 600; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; background: #fff; color: #333; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
+  .action-btn:hover { border-color: #2563eb; color: #2563eb; }
+  .action-btn svg { width: 16px; height: 16px; }
+
+  /* Tabs and content */
+  .phase-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .phase-tab { padding: 10px 18px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; background: #f5f5f5; transition: all 0.2s; }
+  .phase-tab.active { background: #2563eb; color: white; border-color: #2563eb; }
+  .phase-tab:hover:not(.active) { border-color: #2563eb; }
+  .phase-header { margin-bottom: 16px; }
+  .phase-header h3 { font-size: 18px; margin-bottom: 4px; }
+  .phase-header p { font-size: 13px; color: #666; }
+  .bands { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 700px) { .bands { grid-template-columns: 1fr; } }
+  .band { border: 1px solid #ddd; border-radius: 10px; padding: 14px; background: #fff; }
+  .band-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; padding: 4px 10px; border-radius: 4px; display: inline-block; }
+  .band-k5 .band-label { background: #dbeafe; color: #1e40af; }
+  .band-68 .band-label { background: #fef3c7; color: #92400e; }
+  .band-912 .band-label { background: #d1fae5; color: #065f46; }
+  .action-item { font-size: 13px; padding: 8px 0; border-bottom: 1px solid #eee; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; }
+  .action-item:last-child { border-bottom: none; }
+  .check { width: 18px; height: 18px; border: 2px solid #ccc; border-radius: 4px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-top: 1px; transition: all 0.15s; }
+  .check.done { background: #2563eb; border-color: #2563eb; }
+  .check.done::after { content: "\2713"; color: white; font-size: 12px; font-weight: 700; }
+  .action-text.done { text-decoration: line-through; opacity: 0.5; }
+  .district-actions { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fff; }
+  .district-actions .band-label { background: #f3e8ff; color: #6b21a8; }
+  .progress-bar { height: 6px; background: #eee; border-radius: 3px; margin-top: 12px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #2563eb; border-radius: 3px; transition: width 0.3s; }
+  .progress-text { font-size: 12px; color: #666; margin-top: 4px; text-align: right; }
+  .timeline { display: flex; align-items: center; gap: 0; margin-bottom: 20px; }
+  .tl-segment { flex: 1; text-align: center; padding: 8px 4px; font-size: 12px; font-weight: 600; border-bottom: 3px solid #ddd; color: #888; }
+  .tl-segment.active { border-bottom-color: #2563eb; color: #2563eb; }
+  .tl-segment.past { border-bottom-color: #22c55e; color: #16a34a; }
+
+  /* Toast notification */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 100; }
+  .toast.show { opacity: 1; }
+
+  /* Print styles */
+  @media print {
+    body { padding: 0; background: #fff; }
+    .district-bar select { border: none; appearance: none; -webkit-appearance: none; }
+    .action-bar, .phase-tabs { display: none !important; }
+    .check { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .check.done { background: #2563eb !important; border-color: #2563eb !important; }
+    .band-label, .band-k5 .band-label, .band-68 .band-label, .band-912 .band-label, .district-actions .band-label { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .progress-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .tl-segment.active { border-bottom-color: #2563eb !important; }
+    .tl-segment.past { border-bottom-color: #22c55e !important; }
+    .toast { display: none !important; }
+    .print-header { display: block !important; text-align: right; font-size: 11px; color: #999; margin-bottom: 8px; }
+  }
+  .print-header { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="print-header" id="printHeader"></div>
+  <h1 id="mainTitle">NYCPS AI Implementation Planner</h1>
+  <p class="subtitle" id="mainSubtitle">Select your district to get started. Track progress across three phases and three grade bands.</p>
+
+  <div class="district-bar">
+    <label for="districtSelect">Your District:</label>
+    <select id="districtSelect" onchange="selectDistrict()">
+      <option value="">-- Choose a Community School District --</option>
+    </select>
+    <span class="supt-name" id="suptName"></span>
+  </div>
+
+  <div class="action-bar" id="actionBar">
+    <button class="action-btn" onclick="saveProgress()" title="Save a snapshot of your progress">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save Progress
+    </button>
+    <button class="action-btn" onclick="loadProgress()" title="Load a previously saved snapshot">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Load Saved
+    </button>
+    <button class="action-btn" onclick="printPlan()" title="Print your implementation plan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print
+    </button>
+    <button class="action-btn" onclick="resetDistrict()" title="Clear all checkboxes for this district">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+      Reset
+    </button>
+  </div>
+
+  <div class="timeline" id="timeline"></div>
+  <div class="phase-tabs" id="tabs"></div>
+  <div class="phase-header" id="phaseHeader"></div>
+  <div id="content"></div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="progress-text" id="progressText"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── District data ──
+var districts = [
+  { num: 1, name: "District 1", borough: "Manhattan", supt: "Dr. Carry Chan" },
+  { num: 2, name: "District 2", borough: "Manhattan", supt: "Kelly McGuire" },
+  { num: 3, name: "District 3", borough: "Manhattan", supt: "Dr. Reginald Higgins (Acting)" },
+  { num: 4, name: "District 4", borough: "Manhattan", supt: "Kristy De La Cruz" },
+  { num: 5, name: "District 5", borough: "Manhattan", supt: "Sean Davenport" },
+  { num: 6, name: "District 6", borough: "Manhattan", supt: "Renzo Martinez" },
+  { num: 7, name: "District 7", borough: "Bronx", supt: "Dr. Roberto Padilla" },
+  { num: 8, name: "District 8", borough: "Bronx", supt: "Jennifer Joynt" },
+  { num: 9, name: "District 9", borough: "Bronx", supt: "Harry Sherman" },
+  { num: 10, name: "District 10", borough: "Bronx", supt: "Maribel Torres-Hulla" },
+  { num: 11, name: "District 11", borough: "Bronx", supt: "Cristine Vaughan" },
+  { num: 12, name: "District 12", borough: "Bronx", supt: "Dr. Jacqueline Rosado" },
+  { num: 13, name: "District 13", borough: "Brooklyn", supt: "Meghan Dunn" },
+  { num: 14, name: "District 14", borough: "Brooklyn", supt: "David Cintron" },
+  { num: 15, name: "District 15", borough: "Brooklyn", supt: "Rafael Alvarez" },
+  { num: 16, name: "District 16", borough: "Brooklyn", supt: "Vacant / Interim (Brendan Mims removed April 2026)" },
+  { num: 17, name: "District 17", borough: "Brooklyn", supt: "Shenean N. Lindsay" },
+  { num: 18, name: "District 18", borough: "Brooklyn", supt: "Celeste Douglas" },
+  { num: 19, name: "District 19", borough: "Brooklyn", supt: "Dr. Tamra S. Collins" },
+  { num: 20, name: "District 20", borough: "Brooklyn", supt: "Dr. David Pretto" },
+  { num: 21, name: "District 21", borough: "Brooklyn", supt: "Isabel DiMola" },
+  { num: 22, name: "District 22", borough: "Brooklyn", supt: "Julia Bove" },
+  { num: 23, name: "District 23", borough: "Brooklyn", supt: "Dr. Khalek Kirkland" },
+  { num: 32, name: "District 32", borough: "Brooklyn", supt: "Rushell White" },
+  { num: 24, name: "District 24", borough: "Queens", supt: "Madelene Taub-Chan" },
+  { num: 25, name: "District 25", borough: "Queens", supt: "Dr. Michael Dantona" },
+  { num: 26, name: "District 26", borough: "Queens", supt: "Danielle Giunta" },
+  { num: 27, name: "District 27", borough: "Queens", supt: "David Norment" },
+  { num: 28, name: "District 28", borough: "Queens", supt: "Dr. Eric L. Blake" },
+  { num: 29, name: "District 29", borough: "Queens", supt: "Crystal Bonds" },
+  { num: 30, name: "District 30", borough: "Queens", supt: "Dr. Philip Composto" },
+  { num: 31, name: "District 31", borough: "Staten Island", supt: "Roderick Palton" },
+  { num: 75, name: "District 75", borough: "Citywide", supt: "Dr. Keisha McCoy (Interim Acting)" },
+  { num: 79, name: "District 79", borough: "Citywide", supt: "Glenda Esperance" }
+];
+
+// ── Phase data (district-generic) ──
+var phases = [
+  { id: "p1", label: "Phase 1: Foundation", year: "2026-27",
+    desc: "Build the base. Audit tools, train educators, set up governance, launch grade-band pilots.",
+    district: [
+      "Conduct AI landscape audit of all district schools",
+      "Stand up District AI Implementation Team (monthly meetings)",
+      "Deliver foundational AI literacy PD to all educators",
+      "Launch multilingual family engagement with Community Education Council",
+      "Complete ERMA compliance check for all tools in use"
+    ],
+    k5: [
+      "Limit AI to educator-facing Green uses only",
+      "Supervised whole-class AI demos (not individual use)",
+      "Embed AI literacy concepts in existing CS4All curricula",
+      "Train teachers on approved planning/accessibility tools"
+    ],
+    ms: [
+      "Introduce structured, supervised AI in research/writing",
+      "Teach source verification and hallucination recognition",
+      "Develop 6-8 AI literacy module (adapted from HS module)",
+      "Establish classroom norms: AI as aid vs. AI as substitute"
+    ],
+    hs: [
+      "Implement NYCPS High School AI Instructional Module",
+      "Develop course-specific AI use policies",
+      "Pilot PBL units requiring critical AI use",
+      "Align with CTE programming"
+    ]
+  },
+  { id: "p2", label: "Phase 2: Expansion", year: "2027-28",
+    desc: "Integrate Playbook guidance. Differentiate PD. Launch research partnerships. Expand student use.",
+    district: [
+      "Integrate June 2026 Playbook requirements into plan",
+      "Launch differentiated PD tracks (foundational/advanced/leadership)",
+      "Set up data collection: surveys, observations, family feedback",
+      "Establish research partnership with local university",
+      "Prepare for expanded ERMA bias/equity reviews"
+    ],
+    k5: [
+      "Begin supervised small-group AI for grades 3-5",
+      "Develop AI literacy curricula tied to CS/Digital Fluency standards",
+      "Evaluate impact on foundational skill development"
+    ],
+    ms: [
+      "Expand to creative/analytical projects with documented AI process",
+      "Pilot Yellow-category tools with educator oversight protocols",
+      "Redesign assessments: process over product"
+    ],
+    hs: [
+      "Offer elective AI/data science coursework through CTE",
+      "Integrate AI into college and career readiness",
+      "Engage students as co-designers of school AI norms"
+    ]
+  },
+  { id: "p3", label: "Phase 3: Maturation", year: "2028-29+",
+    desc: "Assess impact. Publish results. Codify what works. Build the model for other districts.",
+    district: [
+      "Comprehensive review of AI implementation across the district",
+      "Publish District AI Implementation Report",
+      "Establish annual AI policy review cycles",
+      "Share vetted lesson plan and assessment library"
+    ],
+    k5: [
+      "Codify grade-band-specific norms from evidence",
+      "Expand family AI literacy events (annual)",
+      "Assess cognitive offloading risks with research data"
+    ],
+    ms: [
+      "Refine assessment designs based on two years of data",
+      "Strengthen peer review of AI-assisted student work",
+      "Standing CEC AI advisory role established"
+    ],
+    hs: [
+      "Advanced AI integration across multiple subjects",
+      "Student portfolio includes documented AI competencies",
+      "CTE pathways explicitly address AI workforce readiness"
+    ]
+  }
+];
+
+var currentPhase = 0;
+var currentDistrict = null;
+var checked = {};
+
+function storageKey() {
+  return currentDistrict ? 'nycps_ai_d' + currentDistrict.num : 'nycps_ai_none';
+}
+
+// ── Populate district dropdown ──
+function buildDropdown() {
+  var sel = document.getElementById('districtSelect');
+  var boroughs = ["Manhattan", "Bronx", "Brooklyn", "Queens", "Staten Island", "Citywide"];
+  boroughs.forEach(function(b) {
+    var grp = document.createElement('optgroup');
+    grp.label = b;
+    districts.filter(function(d) { return d.borough === b; }).forEach(function(d) {
+      var opt = document.createElement('option');
+      opt.value = d.num;
+      opt.textContent = 'CSD ' + d.num + ' — ' + d.borough;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  });
+}
+
+function selectDistrict() {
+  var val = document.getElementById('districtSelect').value;
+  if (!val) { currentDistrict = null; return; }
+  currentDistrict = districts.find(function(d) { return d.num == val; });
+  document.getElementById('suptName').textContent = 'Superintendent: ' + currentDistrict.supt;
+  document.getElementById('mainTitle').textContent = 'CSD ' + currentDistrict.num + ' AI Implementation Planner';
+  document.getElementById('mainSubtitle').textContent = 'Community School District ' + currentDistrict.num + ', ' + currentDistrict.borough + '. Track progress across three phases and three grade bands.';
+  // Load this district's saved data
+  try { checked = JSON.parse(localStorage.getItem(storageKey()) || '{}'); } catch(e) { checked = {}; }
+  currentPhase = 0;
+  renderAll();
+}
+
+function renderAll() {
+  renderTimeline(); renderTabs(); renderPhase();
+}
+
+function renderTimeline() {
+  document.getElementById('timeline').innerHTML = phases.map(function(ph, i) {
+    var cls = i === currentPhase ? 'active' : (i < currentPhase ? 'past' : '');
+    return '<div class="tl-segment ' + cls + '">' + ph.year + '</div>';
+  }).join('');
+}
+
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = phases.map(function(ph, i) {
+    return '<div class="phase-tab ' + (i === currentPhase ? 'active' : '') + '" onclick="switchPhase(' + i + ')">' + ph.label + '</div>';
+  }).join('');
+}
+
+function switchPhase(i) { currentPhase = i; renderAll(); }
+
+function renderPhase() {
+  var ph = phases[currentPhase];
+  var dName = currentDistrict ? 'CSD ' + currentDistrict.num : 'District';
+  document.getElementById('phaseHeader').innerHTML = '<h3>' + ph.label + ' (' + ph.year + ')</h3><p>' + ph.desc + '</p>';
+
+  var makeItems = function(items, prefix) {
+    return items.map(function(item, j) {
+      var key = ph.id + '_' + prefix + '_' + j;
+      var isDone = checked[key];
+      return '<div class="action-item">' +
+        '<div class="check ' + (isDone ? 'done' : '') + '" onclick="toggle(\'' + key + '\', this)"></div>' +
+        '<span class="action-text ' + (isDone ? 'done' : '') + '">' + item + '</span></div>';
+    }).join('');
+  };
+
+  document.getElementById('content').innerHTML =
+    '<div class="district-actions"><span class="band-label">District-Wide</span>' + makeItems(ph.district, 'd') + '</div>' +
+    '<div class="bands">' +
+      '<div class="band band-k5"><span class="band-label">K-5</span>' + makeItems(ph.k5, 'k5') + '</div>' +
+      '<div class="band band-68"><span class="band-label">6-8</span>' + makeItems(ph.ms, 'ms') + '</div>' +
+      '<div class="band band-912"><span class="band-label">9-12</span>' + makeItems(ph.hs, 'hs') + '</div>' +
+    '</div>';
+  updateProgress();
+}
+
+function toggle(key, el) {
+  checked[key] = !checked[key];
+  if (!checked[key]) delete checked[key];
+  try { localStorage.setItem(storageKey(), JSON.stringify(checked)); } catch(e) {}
+  el.classList.toggle('done');
+  el.nextElementSibling.classList.toggle('done');
+  updateProgress();
+}
+
+function updateProgress() {
+  var total = 0, done = 0;
+  phases.forEach(function(ph) {
+    ['d','k5','ms','hs'].forEach(function(prefix) {
+      var items = prefix === 'd' ? ph.district : prefix === 'k5' ? ph.k5 : prefix === 'ms' ? ph.ms : ph.hs;
+      items.forEach(function(_, j) { total++; if (checked[ph.id + '_' + prefix + '_' + j]) done++; });
+    });
+  });
+  var pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = done + '/' + total + ' actions complete (' + pct + '%)';
+}
+
+// ── Save / Load / Print / Reset ──
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2500);
+}
+
+function saveProgress() {
+  if (!currentDistrict) { showToast('Select a district first.'); return; }
+  var data = {
+    district: currentDistrict.num,
+    checked: checked,
+    savedAt: new Date().toISOString()
+  };
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'CSD' + currentDistrict.num + '_AI_Plan_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Progress saved to file.');
+}
+
+function loadProgress() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        var data = JSON.parse(ev.target.result);
+        if (!data.district || !data.checked) { showToast('Invalid save file.'); return; }
+        // Switch to the saved district
+        document.getElementById('districtSelect').value = data.district;
+        selectDistrict();
+        checked = data.checked;
+        try { localStorage.setItem(storageKey(), JSON.stringify(checked)); } catch(ex) {}
+        renderAll();
+        showToast('Progress loaded from file. (' + (data.savedAt ? data.savedAt.slice(0,10) : 'unknown date') + ')');
+      } catch(ex) { showToast('Could not read file.'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function printPlan() {
+  if (!currentDistrict) { showToast('Select a district first.'); return; }
+  document.getElementById('printHeader').textContent = 'Printed ' + new Date().toLocaleDateString() + ' — CSD ' + currentDistrict.num + ' — Superintendent: ' + currentDistrict.supt;
+  // Show all phases for print
+  window.print();
+}
+
+function resetDistrict() {
+  if (!currentDistrict) { showToast('Select a district first.'); return; }
+  if (!confirm('Clear all checkboxes for CSD ' + currentDistrict.num + '? This cannot be undone.')) return;
+  checked = {};
+  try { localStorage.setItem(storageKey(), '{}'); } catch(e) {}
+  renderAll();
+  showToast('CSD ' + currentDistrict.num + ' progress reset.');
+}
+
+// ── Init ──
+buildDropdown();
+renderAll();
+</script>
+</body>
+</html>
