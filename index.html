@@ -15,7 +15,10 @@
   .district-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; padding: 12px 16px; background: #fff; border: 1px solid #ddd; border-radius: 10px; }
   .district-bar label { font-size: 13px; font-weight: 700; color: #333; white-space: nowrap; }
   .district-bar select { flex: 1; min-width: 200px; padding: 8px 12px; font-size: 14px; border: 1px solid #ccc; border-radius: 6px; background: #fff; color: #1a1a1a; }
-  .supt-name { font-size: 13px; color: #2563eb; font-weight: 600; }
+  .supt-name { font-size: 13px; color: #2563eb; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+  .edit-supt-btn { background: none; border: none; cursor: pointer; color: #666; padding: 2px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .edit-supt-btn:hover { background: #eee; color: #2563eb; }
+  .edit-supt-btn svg { width: 14px; height: 14px; }
 
   /* Action buttons */
   .action-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -264,9 +267,10 @@ function buildDropdown() {
 
 function selectDistrict() {
   var val = document.getElementById('districtSelect').value;
-  if (!val) { currentDistrict = null; return; }
+  if (!val) { currentDistrict = null; document.getElementById('suptName').innerHTML = ''; return; }
   currentDistrict = districts.find(function(d) { return d.num == val; });
-  document.getElementById('suptName').textContent = 'Superintendent: ' + currentDistrict.supt;
+  document.getElementById('suptName').innerHTML = 'Superintendent: ' + currentDistrict.supt + 
+    ' <button class="edit-supt-btn" onclick="editSuperintendent()" title="Edit Superintendent Name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>';
   document.getElementById('mainTitle').textContent = 'CSD ' + currentDistrict.num + ' AI Implementation Planner';
   document.getElementById('mainSubtitle').textContent = 'Community School District ' + currentDistrict.num + ', ' + currentDistrict.borough + '. Track progress across three phases and three grade bands.';
   // Load this district's saved data
@@ -407,9 +411,47 @@ function resetDistrict() {
   showToast('CSD ' + currentDistrict.num + ' progress reset.');
 }
 
+// ── Fetch & Edit Superintendents ──
+async function fetchSuperintendents() {
+  try {
+    var res = await fetch('/api/superintendents');
+    if (!res.ok) throw new Error('Failed to fetch overrides');
+    var overrides = await res.json();
+    overrides.forEach(function(o) {
+      var d = districts.find(function(dist) { return dist.num == o.districtId; });
+      if (d) d.supt = o.name;
+    });
+    if (currentDistrict) selectDistrict(); // re-render if already selected
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+async function editSuperintendent() {
+  if (!currentDistrict) return;
+  var newName = prompt('Enter new superintendent name for CSD ' + currentDistrict.num + ':', currentDistrict.supt);
+  if (!newName || newName === currentDistrict.supt) return;
+  
+  try {
+    var res = await fetch('/api/superintendents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ districtId: currentDistrict.num, name: newName })
+    });
+    if (!res.ok) throw new Error('Failed to save');
+    currentDistrict.supt = newName;
+    selectDistrict();
+    showToast('Superintendent updated successfully.');
+  } catch(e) {
+    showToast('Error saving superintendent.');
+    console.error(e);
+  }
+}
+
 // ── Init ──
 buildDropdown();
 renderAll();
+fetchSuperintendents();
 </script>
 </body>
 </html>
